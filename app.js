@@ -5,7 +5,6 @@ const GRID_SIZE = 9; // 3x3 grid
 const IMG_SIZE = 64;
 
 // DOM Elements
-const modelSelect = document.getElementById('model-select');
 const mutationSlider = document.getElementById('mutation-slider');
 const mutationValue = document.getElementById('mutation-value');
 const generateBtn = document.getElementById('generate-btn');
@@ -20,17 +19,12 @@ async function init() {
         mutationValue.textContent = e.target.value;
     });
 
-    modelSelect.addEventListener('change', async (e) => {
-        await loadModel(e.target.value);
-        generateGrid(); // Regenerate with new model
-    });
-
     generateBtn.addEventListener('click', () => {
         generateGrid(); // Fully random grid
     });
 
     // Load initial model
-    await loadModel(modelSelect.value);
+    await loadModel("butterfly_generator_350_c_a.onnx");
 
     // Generate initial grid
     generateGrid();
@@ -46,7 +40,16 @@ async function loadModel(modelName) {
 
         // Create new ONNX Runtime session
         // Note: wasm execution provider is used by default in browser
-        session = await ort.InferenceSession.create(modelName, { executionProviders: ['wasm'] });
+        const options = { executionProviders: ['wasm'] };
+        if (modelName === 'butterfly_generator_350_c_a.onnx') {
+            options.externalData = [
+                {
+                    path: 'butterfly_generator_350_c_a.onnx.data',
+                    data: 'butterfly_generator_350_c_a.onnx.data'
+                }
+            ];
+        }
+        session = await ort.InferenceSession.create(modelName, options);
         console.log("Model loaded successfully:", modelName);
         console.log("Input names:", session.inputNames);
         console.log("Output names:", session.outputNames);
@@ -70,9 +73,14 @@ function randomNormal() {
 function generateNoiseVector(baseNoise = null, mutationRate = 0) {
     const noise = new Float32Array(LATENT_DIM);
     for (let i = 0; i < LATENT_DIM; i++) {
-        if (baseNoise && mutationRate > 0) {
-            // Interactive evolution: base + small random mutation
-            noise[i] = baseNoise[i] + (randomNormal() * mutationRate);
+        if (baseNoise) {
+            if (mutationRate > 0) {
+                // Interactive evolution: base + small random mutation
+                noise[i] = baseNoise[i] + (randomNormal() * mutationRate);
+            } else {
+                // Exact copy
+                noise[i] = baseNoise[i];
+            }
         } else {
             // Completely random
             noise[i] = randomNormal();
